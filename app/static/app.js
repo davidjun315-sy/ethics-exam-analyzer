@@ -42,6 +42,7 @@ function controls() {
   $("document").disabled = busy;
   $("history").disabled = busy;
   $("extract").disabled = busy || !$("document").value;
+  $("render-pages").disabled = busy || !$("document").value;
   $("add-missing").disabled =
     busy || !run || run.status === "saved" || !run.original_candidates.length;
   document
@@ -113,6 +114,7 @@ async function questions() {
 }
 async function context() {
   run = null;
+  if (typeof resetViewer === "function") resetViewer();
   render();
   $("document-info").textContent = "";
   $("document").replaceChildren();
@@ -139,6 +141,10 @@ async function context() {
   await questions();
 }
 function readEditors() {
+  if (run?.engine === "multimodal") {
+    readVision();
+    return;
+  }
   if (!run) return;
   document.querySelectorAll(".candidate").forEach((node, i) => {
     run.candidates[i].question_number = Number(
@@ -164,6 +170,10 @@ function gaps() {
   );
 }
 function addMissing(number) {
+  if (run?.engine === "multimodal") {
+    addVisionMissing(number);
+    return;
+  }
   readEditors();
   if (!Number.isInteger(number) || number < 1 || number > 999) {
     notice("1~999 사이 문항 번호를 입력하세요.", true);
@@ -202,6 +212,10 @@ function addMissing(number) {
   );
 }
 function render() {
+  if (run?.engine === "multimodal") {
+    renderVision();
+    return;
+  }
   for (const id of ["candidates", "warnings", "pages"]) $(id).replaceChildren();
   $("run-info").textContent = run
     ? `${statuses[run.status] || run.status} · 후보 ${run.candidates.length}개 · 수정 버전 ${run.revision}`
@@ -412,7 +426,11 @@ $("upload-form").onsubmit = (e) => {
 $("document").onchange = controls;
 $("extract").onclick = () =>
   task(async () => {
-    notice("페이지 텍스트를 추출하고 문항을 분리하고 있습니다…");
+    if ($("extraction-mode").value === "multimodal") {
+      await startVision();
+      return;
+    }
+    notice("보조 텍스트를 추출하고 문항을 분리하고 있습니다…");
     run = await api(
       `/exams/${$("exam").value}/documents/${$("document").value}/extract`,
       json("POST", {
@@ -437,6 +455,10 @@ $("history").onchange = () =>
     render();
   });
 async function draft() {
+  if (run?.engine === "multimodal") {
+    await draftVision();
+    return;
+  }
   readEditors();
   run = await api(
     `/extractions/${run.id}`,
@@ -454,6 +476,10 @@ $("draft").onclick = () =>
   });
 $("save").onclick = () =>
   task(async () => {
+    if (run?.engine === "multimodal") {
+      await saveVision();
+      return;
+    }
     const acknowledged = $("gap-ack").checked;
     readEditors();
     if (gaps().length && !acknowledged)

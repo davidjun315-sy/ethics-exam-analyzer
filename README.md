@@ -1,195 +1,153 @@
 # 윤리 임용 기출 분석 AI
 
-윤리 임용 기출을 **PDF → 문항 추출 → 사용자 검수 → 문항 DB**로 관리하는 개발 버전입니다.
-Phase 1 DB·CRUD API 위에 Phase 2 PDF 처리와 브라우저 검수 화면을 추가했습니다.
-실제 AI 정답 분석·OCR·통계는 아직 구현하지 않았습니다.
+## Windows에서 한 번에 실행하는 방법
 
-## 브라우저에서 사용하는 방법
+1. Python **3.12 또는 3.13**을 설치합니다.
+2. GitHub `main`의 최신 코드를 받습니다. 기존 설치라면 서버를 종료하고 `git pull origin main`을 실행합니다.
+3. 프로젝트 루트의 **`start_windows.bat`를 더블클릭**합니다.
 
-웹 UI와 API는 **하나의 FastAPI 서버**에서 실행됩니다. 별도의 프런트엔드 서버나 Node.js 설치는 필요 없습니다.
+가상환경 생성(최초 실행), 의존성 설치, DB 마이그레이션, 서버 시작을 자동으로 수행합니다.
+서버가 준비되면 브라우저가 열립니다. 주소는 `http://127.0.0.1:8000`입니다.
+터미널을 켜 두고 사용하며 종료는 Ctrl+C입니다. Python 설치·패키지 다운로드 오류는 창에 표시됩니다.
 
-공식 지원 대상은 Windows 11과 Linux의 Python 3.12/3.13입니다. macOS 실행 명령도 제공합니다.
-Windows/Linux 설치·마이그레이션·PDF 처리·브라우저 흐름은 GitHub Actions에서 지속 검증합니다.
+## 현재 구현 범위
 
-Python 3.12 또는 3.13을 설치한 PC의 터미널에서:
+기본 흐름은 **PDF 업로드 → 페이지 이미지 렌더링 → 테스트 추출(Mock Provider) → 좌우 검수 → 문항 저장**입니다.
+
+**현재 Mock은 실제 AI 문항 분리나 OCR을 하지 않습니다.** 실제 PNG 이미지와 보조 텍스트를 입력받아
+페이지 전체를 임시 후보 하나로 제공합니다. 텍스트 PDF는 보조 텍스트를 표시하고, 스캔은 수동 입력 안내를
+표시합니다. 문항 번호·경계·원문·지문·선택지를 사람이 확인해야 합니다. 실제 정답 분석·통계는 후속 단계입니다.
+
+기존 Phase 1/2 CRUD, 시험 A/B 구분, 사상가·개념 정규화, 분석 버전·검수·확정본 선택,
+pdfplumber 번호 분리·누락 경고를 유지합니다. 기존 추출은 화면에서 **보조/기존 추출 모드**로 선택합니다.
+이전 문항과 확정 분석을 재분석하거나 덮어쓰지 않습니다.
+
+## 브라우저 사용 순서
+
+1. 시험을 선택하거나 생성합니다. 같은 연도의 A/B는 따로 등록합니다.
+2. PDF를 선택하고 **PDF 업로드**를 누릅니다. 최대 25MB·500쪽이며 같은 SHA256은 중복 감지합니다.
+3. **페이지 이미지 생성**으로 원본 페이지를 확인합니다. 모든 페이지를 144 DPI PNG로 렌더링하며
+   스캔도 같은 경로를 사용합니다. 같은 문서·버전·DPI의 이미지는 재사용합니다.
+4. 기본 **페이지 이미지 · 테스트 추출(Mock Provider)** 상태에서 추출 버튼을 누릅니다.
+   이 단계는 필요하면 렌더링도 자동 수행합니다. 실제 AI라고 표시하지 않습니다.
+5. 왼쪽 원본에서 페이지 이동·확대/축소를 하고, 오른쪽 후보에서 번호·본문·지문·선택지·답안 영역을 수정합니다.
+   선택지는 일반 입력창에서 추가·삭제합니다. 관련 이미지/표와 출처 영역도 추가할 수 있습니다.
+6. 문항을 선택하면 원본 출처로 이동하고 영역이 강조됩니다. **이미지에서 드래그**해 해당 페이지의
+   출처 영역을 바꾸거나, 위치를 % 입력창에서 조정합니다. 내부 API는 0~1 정규화 bbox를 사용합니다.
+7. 합치기·커서 분리·누락 문항 추가 후 내용·번호·출처 중복을 확인합니다.
+   다음 페이지로 이어지는 문항은 합친 후 ‘다음 페이지로 이어짐’을 해제해야 저장됩니다.
+8. **수정 초안 저장** 후 다시 접속해 시험·추출 이력을 선택하면 이어서 검수할 수 있습니다.
+9. **검토 완료 · 문항 저장**을 누릅니다. 번호 누락은 명시적인 확인 없이 저장할 수 없고,
+   기존 번호 충돌은 차단합니다. AI 분석 확정과 PDF 추출 검수는 별개의 상태입니다.
+
+## 로컬 수동 실행 (macOS/Linux)
 
 ```bash
-git clone https://github.com/davidjun315-sy/ethics-exam-analyzer.git
-cd ethics-exam-analyzer
-python -m venv .venv
-```
-
-macOS/Linux:
-
-```bash
+python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.lock
-.venv/bin/alembic upgrade head
-.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+.venv/bin/python -m alembic upgrade head
+.venv/bin/python -m app.launcher
 ```
 
-Windows PowerShell:
+API와 UI가 같은 서버에서 제공되어 별도 Node.js/프런트엔드 서버가 필요 없습니다. `/docs`에 API 문서가 있습니다.
+`127.0.0.1`은 서버를 실행한 컴퓨터에서만 열립니다. 클라우드 내부 주소가 개인 PC에 자동 공개되지는 않습니다.
 
-```powershell
-.venv\Scripts\python.exe -m pip install -r requirements.lock
-.venv\Scripts\alembic.exe upgrade head
-.venv\Scripts\uvicorn.exe app.main:app --host 127.0.0.1 --port 8000
-```
+## DB와 파일 저장
 
-브라우저 주소창에 `http://127.0.0.1:8000`을 입력합니다. 터미널은 켜 둡니다.
-API 문서는 `/docs`입니다. 종료는 터미널에서 Ctrl+C를 누릅니다.
+- `document_page_assets`: 페이지 번호, PNG 저장 키, 픽셀 크기, DPI, SHA256, 렌더링 버전.
+- `page_regions`: 문항·이미지·표의 페이지 영역.
+- `extraction_batches`: 입력 페이지, 이미지+보조 텍스트 해시, Provider·모델·스키마 버전, 원본 응답.
+- `extraction_candidates`: 구조화된 후보와 리비전, 원본과 별개의 검수 결과.
+- `candidate_sources`: 후보와 페이지 영역 연결.
+- `processing_jobs`: 작업 상태·진행률·결과·오류. 기본 로컬 실행은 inline, Redis 설정 시 비동기 worker.
+- `question_sources`: 기존 문서·페이지 연결 유지, 선택적 `page_region_id`와 전체 영역 참조 추가.
+- 기존 `original_candidates/candidates` JSON은 유지하고 새 멀티모달 후보는 별도 테이블에도 기록합니다.
+- 수정 시 이전 후보를 삭제하지 않고 비활성 이력으로 남깁니다. 문항 저장 시 지문·선택지·답안·영역을 보존합니다.
 
-이 주소는 **서버를 실행한 컴퓨터에서만** 접근할 수 있습니다. 클라우드 내부에서 실행한
-서버가 개인 PC의 브라우저에 자동 공개되지는 않습니다. 이 저장소는 공개 호스팅을 제공하지 않습니다.
+원본 PDF 캐시는 `storage/pdfs`, 로컬 객체 저장소는 `storage/assets`입니다. `PDF_STORAGE_DIR`와
+`ASSET_STORAGE_DIR`로 변경할 수 있습니다. DB·PDF·페이지 이미지를 함께 백업해야 합니다.
+실제 PDF·이미지 저장 폴더·DB·`.env`·개인키는 Git과 Docker build context에서 제외됩니다.
+환경변수는 실행 전에 설정합니다. `.env`를 자동으로 읽거나 Git에 저장하지 않습니다.
 
-이미 설치한 경우에는 `git pull origin main` 후 의존성 설치와 `alembic upgrade head`를 다시 실행합니다.
-기존 DB를 삭제할 필요가 없습니다. 기본 DB는 현재 폴더의 `ethics.db`입니다.
+## 새 API
 
-### 화면에서 PDF 처리하기
+| 경로 | 기능 |
+|---|---|
+| `/exams/{exam_id}/documents/{document_id}/render` | POST 페이지 이미지 생성 작업 |
+| `/documents/{id}/page-assets` | GET 페이지 이미지 메타데이터 |
+| `/page-assets/{id}/image` | GET 실제 PNG |
+| `/exams/{exam_id}/documents/{document_id}/extract-images` | POST 이미지 기반 Mock 추출 작업 |
+| `/processing-jobs/{id}` | GET 작업 상태·진행률·결과 |
+| `/multimodal/schema` | GET Provider 출력 JSON Schema |
+| `/multimodal-extractions/{id}` | GET 결과 / PUT 전체 구조화 후보 수정 |
+| `/multimodal-extractions/{id}/save` | POST 검토 문항 저장 |
 
-1. **시험 선택**에서 기존 시험을 고르거나 **새 시험 만들기**를 엽니다. 연도·구분·이름을 입력합니다. 예: `2008`, `A`, `2008 윤리 전공 A`. B 시험지는 따로 만듭니다.
-2. **PDF 업로드와 추출**에서 파일을 선택하고 **PDF 업로드**를 누릅니다. 최대 25MB·500쪽입니다. 파일명·SHA256·페이지 수가 표시됩니다. 같은 내용의 PDF는 기존 문서를 재사용합니다.
-3. **텍스트 추출 · 문항 분리**를 누릅니다. 페이지별 텍스트를 추출하고 번호·레이아웃·문항 순서를 이용해 후보를 만듭니다.
-4. **문항 검토와 저장**에서 번호·내용·출처 페이지를 수정합니다. 출처 페이지는 `1, 2`처럼 입력합니다. 원본 후보가 포함한 페이지 범위 안에서만 수정할 수 있습니다.
-5. 필요하면 **다음 문항과 합치기**를 누릅니다. 분리할 때는 내용 입력창의 원하는 위치에 커서를 놓고 **커서 위치에서 분리**를 누릅니다. 새 문항 번호는 임시로 가장 큰 번호+1이므로 확인합니다.
-6. **수정 초안 저장**은 후보만 저장합니다. 재접속 후 같은 시험과 **이전 추출 결과**를 선택하면 이어서 작업할 수 있습니다.
-7. **검토 완료 · 문항 저장**을 누르면 후보가 Question과 QuestionSource로 저장됩니다. 아래 **저장된 문항**에서 결과를 펼쳐 볼 수 있습니다.
+수정·저장은 `expected_revision`으로 충돌을 검사합니다. 입력 페이지 밖 참조, 중복 번호,
+잘못된 bbox는 저장을 거부합니다. `MULTIMODAL_PROVIDER=mock` 외 Provider는 아직 연결되지 않았습니다.
 
-같은 시험에 같은 번호가 이미 있으면 저장을 차단합니다. 후보 번호를 고치거나 올바른 시험을
-선택하세요. 기존 문항이나 분석 결과를 자동 덮어쓰지 않습니다. 문항으로 저장한 추출 결과는
-읽기 전용입니다. 후속 수정은 Phase 1 문항 API를 사용할 수 있으며, 분석 이력이 생긴 원문은 변경할 수 없습니다.
-
-### 상태 안내
-
-- **추출 완료 · 검토 필요**: 텍스트 추출 완료. 자동 문항 경계는 직접 확인해야 합니다.
-- **일부 페이지 OCR 필요**: 텍스트 없는 페이지와 텍스트 있는 페이지가 섞여 있습니다. 저장해도 빠진 스캔 내용이 복구되지는 않습니다.
-- **OCR 필요**: 텍스트 층이 없습니다. 이번 버전은 OCR을 제공하지 않습니다.
-- **문항 저장 완료**: 검토한 후보가 문항 DB에 반영되었습니다. AI 정답 분석의 confirmed/corrected와 별개의 상태입니다.
-
-빈 페이지도 텍스트가 없는 페이지로 표시될 수 있습니다. 페이지별 추출 원문을 확인하세요.
-
-## 저장 방식과 보호 규칙
-
-- 원본 PDF는 `storage/pdfs/<SHA256>.pdf`에 저장합니다. 업로드 파일명을 경로로 사용하지 않습니다.
-- `documents`: 파일명, SHA256, 페이지 수. 같은 PDF를 여러 시험에 연결할 수 있습니다.
-- `extraction_runs`: 시험별 추출 실행, 버전, 원본 후보, 수정 후보, 경고, 수정 리비전.
-- `document_pages`: 실행별 페이지 번호·텍스트·추출 상태.
-- `questions`: 검토한 문항 내용과 별도로 보존한 자동 추출 원문.
-- `question_sources`: 문항별 PDF와 출처 페이지. 여러 페이지를 연결할 수 있습니다.
-- 원본 후보와 페이지 텍스트는 수정 API로 덮어쓰지 않습니다. 문항을 분리하면 원본 참조를 공유할 수 있습니다.
-- 수정 리비전이 다르면 저장을 차단하며, 번호 충돌 시 전체 문항 저장을 취소합니다.
-- PDF, DB, 업로드 폴더, `.env`, 개인키는 `.gitignore`로 제외합니다. 샘플도 실제 기출처럼 취급하지 않습니다.
-
-환경변수는 서버 실행 전에 설정합니다. `.env`는 자동으로 로드하지 않습니다.
-`DATABASE_URL`로 DB를, `PDF_STORAGE_DIR`로 파일 저장 폴더를 변경합니다.
+기존 `/exams`, `/documents`, `/questions`, `/thinkers`, `/concepts`, `/analyses`, `/published-analyses`,
+`/extractions`와 기존 pdfplumber 추출 API는 유지합니다. 새 이미지 실행은 구조화 수정·저장 API를 사용합니다.
 
 ## 테스트
 
 ```bash
-.venv/bin/pytest -q
-.venv/bin/alembic check
+.venv/bin/python -m pytest -q
+.venv/bin/python -m alembic check
 ```
 
-Windows는 `.venv/bin/` 대신 `.venv\Scripts\`를 사용합니다.
-테스트가 PDF를 메모리에서 직접 생성합니다. 실제 기출 PDF나 API key가 필요 없습니다.
-Phase 1 7개, Phase 2 API·추출 7개, 실제 Chromium 브라우저 흐름 2개,
-Windows 호환 회귀 테스트 7개, 좌표·번호·누락 보정 회귀 테스트 17개로 총 40개입니다.
-브라우저 테스트는 Chromium이 없으면 skipped로 표시됩니다. 로컬 테스트에서 브라우저를 지정하려면:
+Windows는 `.venv/bin/python` 대신 `.venv\Scripts\python.exe`를 사용합니다.
+테스트는 PDF를 직접 생성합니다. 실제 기출·LLM key가 필요 없습니다. Windows/Linux Python 3.12/3.13 CI를 유지합니다.
+브라우저 테스트는 Chromium이 필요합니다. 로컬 브라우저 경로를 `BROWSER_EXECUTABLE`로 지정하거나
+`python -m playwright install chromium` 후 `USE_PLAYWRIGHT_BROWSER=1`을 설정합니다.
+
+외부 서비스 없는 기본 테스트에서는 Redis 통합 테스트 하나가 skipped입니다. Redis+PostgreSQL까지 검증하려면
+테스트용 DB와 큐를 지정합니다. 테스트는 임의 이름의 DB 스키마와 Redis 큐를 사용하며 기존 데이터를 삭제하지 않습니다.
 
 ```bash
-BROWSER_EXECUTABLE=/usr/bin/chromium .venv/bin/pytest -q tests/test_browser.py
+TEST_DATABASE_URL='postgresql+psycopg://user:password@localhost/test_db' \
+TEST_REDIS_URL='redis://localhost:6379/0' .venv/bin/python -m pytest -q
 ```
 
-검증 항목: A/B 분리, CRUD·참조 제약·검수 리비전, 한국어 추출, 다중 페이지 문항,
-2단 편집, 중복 업로드, 스캔 감지, 원문 보존, 합치기·분리·저장 충돌,
-브라우저 업로드·수정·재접속·저장. 브라우저 테스트는 별도 임시 DB와 서버를 사용합니다.
+Windows uvloop 제외 marker를 유지합니다. `pip freeze` 출력으로 lockfile 전체를 덮어쓰지 마세요.
+PDF·PNG 쓰기 핸들은 읽기·이동·삭제 전에 닫아 Windows 파일 잠금을 방지합니다.
 
-## PostgreSQL (선택)
+## 실제 LLM 연결을 위해 남은 작업
 
-SQLite는 단일 개발 인스턴스용입니다. 동시 사용에는 PostgreSQL을 권장합니다.
+`app/multimodal_provider.py`의 `MultimodalExtractionProvider` 계약을 구현하고 `get_provider()`에 등록합니다.
+입력은 실제 PNG bytes·페이지 번호·보조 텍스트·크기, 출력은 `ExtractionOutput`입니다.
+외부 API key는 서버의 안전한 환경 설정에만 둡니다. 연결 후 이미지 기반 읽기 정확도, 인접 페이지
+겹침 배치와 문항 연결, 비용·재시도·처리 제한을 실제 시험지로 검증해야 합니다.
+현재 Mock은 2페이지씩 입력받지만 페이지 간 문항을 자동으로 연결하지 않습니다.
+
+## 항상 접근 가능한 웹 배포 준비
+
+`Dockerfile`, `render.yaml`, `deploy/production.env.example`을 제공합니다. 공개 주소는 아직 생성하지 않았습니다.
+기본 배포는 **Render 상시 웹 서비스 + worker + PostgreSQL + Redis + 비공개 S3/R2 저장소**입니다.
+worker에서 PDF를 처리하므로 업로드 후 브라우저가 작업 진행률을 조회합니다.
+
+최소 사용자 작업:
+
+1. Render 계정에서 이 GitHub 저장소의 `render.yaml`로 Blueprint를 생성하고 유료 상시 서비스를 선택합니다.
+2. S3 또는 R2 비공개 버킷을 만들고 endpoint·bucket·access key·secret key를 설정합니다.
+   웹과 worker에는 동일한 객체 저장소 값을 입력합니다. AWS S3가 us-east-1 밖에 있으면 OBJECT_STORAGE_REGION도 실제 지역으로 변경하고, R2는 해당 저장소의 지역 설정을 사용합니다.
+3. 웹의 `ACCESS_PASSWORD`를 설정합니다. 사용자명 기본값은 `owner`입니다.
+4. 배포 후 Render가 제공하는 HTTPS 주소에 접속합니다. 선택적으로 개인 도메인을 연결합니다.
+
+Blueprint는 PostgreSQL/Redis 연결 문자열을 연결합니다. 외부 LLM key 없이도 Mock 배포가 가능합니다.
+비밀값은 Render 설정에 입력하며 채팅이나 Git 파일에 넣지 않습니다. 빈 비밀번호로 production 접근하면
+503, 인증 없이 접근하면 401입니다. 단일 소유자용 HTTP Basic 접근 제한이며 HTTPS로 사용해야 합니다.
+사용자별 계정·권한·감사 로그가 필요한 공유 서비스는 별도 인증 시스템이 필요합니다.
+
+직접 Docker 실행:
 
 ```bash
-export POSTGRES_PASSWORD='직접 지정한 개발용 비밀번호'
-docker compose up -d db
-export DATABASE_URL='postgresql+psycopg://ethics:URL인코딩된비밀번호@localhost:5432/ethics'
-.venv/bin/alembic upgrade head
-.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+docker build -t ethics-review .
+docker run --rm -p 8000:8000 ethics-review
 ```
 
-테스트에는 별도 DB를 사용합니다. 테스트별 임의 이름의 스키마를 생성하고 해당 스키마만 삭제합니다.
+실제 production은 `deploy/production.env.example` 항목을 비밀 환경 설정으로 전달합니다.
+`OBJECT_STORAGE_BACKEND=s3`, `JOB_BACKEND=redis`를 사용해야 파일이 인스턴스 재시작 후에도 유지됩니다.
+웹과 worker를 함께 실행하며 worker 명령은 `python -m app.worker`입니다. 로컬 개발 기본은 SQLite+inline+로컬 저장소입니다.
+프록시 환경에서만 Docker build의 선택적 `build_ca` secret으로 신뢰할 CA를 전달할 수 있으며 TLS 검증을 끄지 않습니다.
 
-```bash
-TEST_DATABASE_URL='postgresql+psycopg://user:password@localhost/test_db' .venv/bin/pytest -q
-```
-
-## 주요 API
-
-| 경로 | 기능 |
-|---|---|
-| `/exams`, `/documents`, `/areas`, `/thinkers`, `/concepts`, `/question-types` | Phase 1 CRUD |
-| `/exams/{id}/upload` | POST multipart PDF 업로드·중복 감지·시험 연결 |
-| `/exams/{id}/uploaded-documents` | GET 시험별 문서 |
-| `/exams/{id}/documents/{document_id}/extract` | POST 페이지 추출·문항 후보 생성 |
-| `/exams/{id}/extractions` | GET 추출 이력 |
-| `/extractions/{id}` | GET 원문·후보·페이지 / PUT 후보 전체 수정 |
-| `/extractions/{id}/save` | POST 검토 후보를 문항으로 저장 |
-| `/questions` | POST/GET: 문항 저장·검색 |
-| `/questions/{id}` | GET/PUT/DELETE: 분석 이력 생성 후 변경·삭제 금지 |
-| `/questions/{id}/analyses` | POST/GET: 분석 초안 저장·이력 조회 |
-| `/analyses/{id}/corrections`, `/analyses/{id}/confirm` | 수정본 생성·검수 확정 |
-| `/published-analyses` | GET 문항별 현재 확정 분석 |
-
-시험 업무 코드는 `2008_A`, 내부 연결 ID는 UUID입니다. PUT은 전체 필드 대체입니다.
-추출 수정·문항 저장은 `expected_revision`이 필요합니다. 상세 스키마는 `/docs`에서 확인합니다.
-
-## 아직 구현하지 않은 기능
-
-OCR, 실제 LLM 호출, AI 정답 검수 전용 화면, 통계, 공부 우선순위, 인증·권한, 공개 배포.
-PDF 추출은 동기 실행하므로 큰 파일은 시간이 걸릴 수 있습니다. 작업 큐·진행률은 후속 작업입니다.
-표·복잡한 다단 편집·지문 안의 번호를 완벽하게 분리하지는 못합니다. 보수적인 2단 감지와
-여러 번호 형식을 지원하며, 번호가 없으면 전체 텍스트를 임시 후보로 표시합니다.
-선행 안내문은 문항에서 제외되지만 페이지 원문에 보존됩니다. 문항별 지문·선택지의 자동 구조화는 후속 작업입니다.
-로컬 개발용 서버입니다. 공개 서비스 전 인증·사용자 감사·처리 시간 제한을 추가해야 합니다.
-
-다음 단계: [docs/roadmap.md](docs/roadmap.md)
-
-## Windows 호환성 유지
-
-`requirements.lock`의 uvloop는 `sys_platform != "win32"` 조건으로 Windows에서 제외됩니다.
-Windows에서는 asyncio를 사용합니다. colorama는 Windows에서만 설치합니다.
-플랫폼 조건이 손실되므로 `pip freeze` 출력으로 이 파일을 그대로 덮어쓰지 마세요.
-
-업로드는 임시 파일 쓰기 핸들을 닫은 다음 PDF를 읽습니다. PDF 읽기 핸들도 닫은 후
-파일을 이동하며, 바깥 finally에서 임시 파일을 정리합니다. 유효하지 않은 PDF, 크기 초과,
-쓰기·이동 실패에도 임시 파일이 남지 않는지 회귀 테스트로 검사합니다.
-파일 잠금 오류를 무시하거나 PermissionError를 숨기는 방식을 사용하지 않습니다.
-
-Windows/Linux CI는 Python 3.12/3.13에서 전체 lockfile 설치, pip check,
-마이그레이션과 모든 테스트를 실행합니다. CI는 Playwright Chromium을 설치해
-브라우저 테스트가 skipped되지 않도록 합니다.
-
-Windows에서 이번 수정 적용하기(기존 설치 폴더의 PowerShell):
-
-```powershell
-git pull origin main
-.venv\Scripts\python.exe -m pip install -r requirements.lock
-.venv\Scripts\alembic.exe upgrade head
-.venv\Scripts\uvicorn.exe app.main:app --host 127.0.0.1 --port 8000
-```
-
-실행 중이던 서버는 먼저 Ctrl+C로 종료한 뒤 다시 실행하세요.
-
-## 문항 번호 누락 개선 (추출 v2)
-
-`2.본문`, `2．본문`, `2번본문`, 독립 번호 줄과 분리 토큰을 인식하며 좌표로 2단 순서를
-복원합니다. ‘PDF 읽기 순서’에서 자동/1단/2단을 지정할 수 있습니다. 실제 문항 번호가
-① 형식일 때만 원형 번호 모드를 켜세요. 선택지와 혼동될 수 있습니다.
-
-연속 번호가 비면 후보 사이에 ‘2번 누락 가능’ 같은 표시와 추가 버튼이 나옵니다.
-커서 분리는 유지되며, 누락 번호가 있으면 먼저 그 번호로 나눕니다. 추가한 빈 문항은
-원문으로 직접 채워야 합니다. 번호가 비는 결과는 확인 체크 없이 문항으로 저장되지 않습니다.
-페이지별 원문의 ‘번호 탐지 진단’에서 좌표, 채택/제외 이유, 기본 텍스트를 확인할 수 있습니다.
-자세한 원인 분석과 제한은 [문항 경계 진단 안내](docs/pdf-boundaries.md)에 있습니다.
-
-기존 설치는 서버 종료 후 의존성을 설치하고 `alembic upgrade head`를 실행하세요.
-기존 추출 이력에는 진단 정보가 없으므로 동일 PDF를 선택해 새 추출을 실행해야 합니다.
-이전 확정 문항이나 추출 이력은 자동으로 변경하지 않습니다.
+기존 번호 경계 진단: [docs/pdf-boundaries.md](docs/pdf-boundaries.md)

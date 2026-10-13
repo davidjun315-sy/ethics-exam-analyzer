@@ -6,19 +6,21 @@
     <title>윤리 기출 · PDF 검수</title>
     <link rel="stylesheet" href="/static/style.css" />
     <script src="/static/app.js" defer></script>
+    <script src="/static/vision.js" defer></script>
   </head>
   <body>
     <header>
       <span class="brand">윤리 기출 연구실</span
-      ><span class="badge">Phase 2 · PDF 검수</span>
+      ><span class="badge">이미지 기반 · Mock 검수</span>
     </header>
     <main>
       <section class="intro">
         <p class="eyebrow">원문을 확인하고, 정확한 기출 데이터로</p>
         <h1>PDF에서 문항까지</h1>
         <p>
-          시험을 선택하고 PDF를 올려 주세요. 자동으로 분리된 문항을 검토한 뒤
-          저장할 수 있습니다.
+          시험을 선택하고 PDF를 올려 주세요. 페이지 이미지와 테스트 후보를
+          대조하고 수정해 저장하세요. 기본 모드는 실제 AI가 아닌 Mock
+          Provider입니다.
         </p>
       </section>
       <div id="message" role="status" aria-live="polite"></div>
@@ -73,7 +75,16 @@
         <label for="document">이 시험의 문서</label
         ><select id="document">
           <option value="">먼저 시험을 선택하세요</option></select
-        ><button id="extract" disabled>텍스트 추출 · 문항 분리</button>
+        ><button id="extract" disabled>이미지 기반 테스트 추출</button>
+        <label for="extraction-mode">추출 방식</label
+        ><select id="extraction-mode">
+          <option value="multimodal">
+            페이지 이미지 · 테스트 추출(Mock Provider)
+          </option>
+          <option value="legacy">보조/기존 추출 모드 · pdfplumber</option>
+        </select>
+        <button id="render-pages" disabled>페이지 이미지 생성</button>
+        <div id="job-status" role="status"></div>
         <label for="column-mode">PDF 읽기 순서</label>
         <select id="column-mode">
           <option value="auto">자동 감지</option>
@@ -97,8 +108,30 @@
         </select>
         <div id="run-info" class="hint"></div>
         <div id="warnings"></div>
-        <div id="candidates">
-          <p class="empty">추출을 실행하면 문항 후보가 여기에 표시됩니다.</p>
+        <div class="review-layout">
+          <aside id="image-panel">
+            <h3>원본 PDF 페이지</h3>
+            <div class="image-tools">
+              <button id="page-prev" class="secondary">이전 페이지</button
+              ><select id="page-select" aria-label="원본 페이지 선택"></select
+              ><button id="page-next" class="secondary">다음 페이지</button
+              ><button id="zoom-out" class="secondary">축소</button
+              ><button id="zoom-in" class="secondary">확대</button>
+            </div>
+            <div id="image-scroll">
+              <div id="image-stage">
+                <img id="page-image" alt="PDF 원본 페이지" />
+                <div id="image-regions"></div>
+              </div>
+            </div>
+            <p class="hint">
+              원본 이미지에서 드래그하면 선택 문항의 출처 영역을 수정합니다.
+            </p>
+            <p id="image-info" class="hint">페이지 이미지를 생성하세요.</p>
+          </aside>
+          <div id="candidates">
+            <p class="empty">추출을 실행하면 문항 후보가 여기에 표시됩니다.</p>
+          </div>
         </div>
         <div class="manual-add">
           <label for="add-number">누락 문항 번호</label
@@ -135,8 +168,8 @@
       </section>
     </main>
     <footer>
-      자동 분리는 검토를 돕는 초안입니다. AI 정답 분석·OCR·통계는 아직 제공하지
-      않습니다.
+      자동 분리는 검토를 돕는 초안입니다. Mock은 OCR이나 실제 AI 문항 분석을
+      수행하지 않습니다.
     </footer>
   </body>
 </html>

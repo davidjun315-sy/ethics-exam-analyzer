@@ -68,6 +68,8 @@ def upload(exam_id: str, file: UploadFile = File(...), db: Session = Depends(get
         destination = storage() / f'{sha}.pdf'
         if not destination.exists():
             temporary.replace(destination)
+        from .blob_storage import object_storage
+        object_storage().put(f'pdfs/{sha}.pdf', destination.read_bytes(), 'application/pdf')
         if not existing:
             db.add(doc)
             db.flush()
@@ -103,9 +105,8 @@ def extract(exam_id: str, document_id: str, options: ExtractOptions = ExtractOpt
     if not db.get(m.ExamDocument, {'exam_id': exam_id, 'document_id': document_id}):
         raise HTTPException(422, '시험에 연결되지 않은 문서입니다.')
     # Never trust the metadata-only storage_key supplied by Phase 1 CRUD.
-    path = storage() / f'{doc.sha256}.pdf'
-    if not path.is_file():
-        raise HTTPException(409, 'PDF 원본 파일이 없습니다. 업로드 화면에서 파일을 올려 주세요.')
+    from .multimodal_api import pdf_path
+    path = pdf_path(doc)
     pages, warnings, layouts = [], [], {}
     try:
         with pdfplumber.open(path) as pdf:
@@ -136,6 +137,9 @@ def extract(exam_id: str, document_id: str, options: ExtractOptions = ExtractOpt
 
 def run_view(db, run):
     _, _, serialize = helpers()
+    if run.engine == 'multimodal':
+        from .multimodal_api import vision_view
+        return vision_view(db, run)
     result = serialize(run)
     result['missing_numbers'] = missing_numbers(run.candidates)
     result['warnings'] = [w for w in run.warnings if '번 문항 경계 누락 가능성:' not in w] + gap_warnings(run.candidates)
@@ -204,6 +208,8 @@ def locked_run(db, id, revision):
 def edit_run(id: str, payload: Edit, db: Session = Depends(get_db)):
     commit, _, _ = helpers()
     run = locked_run(db, id, payload.expected_revision)
+    if run.engine == 'multimodal':
+        raise HTTPException(422, '멀티모달 수정 API를 사용하세요.')
     nums = [x.question_number for x in payload.candidates]
     if len(nums) != len(set(nums)):
         raise HTTPException(422, '문항 번호가 중복되었습니다.')
@@ -223,6 +229,8 @@ def edit_run(id: str, payload: Edit, db: Session = Depends(get_db)):
 def save_run(id: str, payload: Save, db: Session = Depends(get_db)):
     commit, _, _ = helpers()
     run = locked_run(db, id, payload.expected_revision)
+    if run.engine == 'multimodal':
+        raise HTTPException(422, '멀티모달 저장 API를 사용하세요.')
     if not run.candidates:
         raise HTTPException(422, '저장할 문항이 없습니다. 스캔 문서는 OCR이 필요합니다.')
     if missing_numbers(run.candidates) and not payload.acknowledge_missing:

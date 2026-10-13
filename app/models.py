@@ -110,6 +110,8 @@ class QuestionSource(Base):
     question_id: Mapped[str] = mapped_column(ForeignKey("questions.id", ondelete="CASCADE"), primary_key=True)
     document_id: Mapped[str] = mapped_column(ForeignKey("documents.id", ondelete="RESTRICT"), primary_key=True)
     page_number: Mapped[int] = mapped_column(Integer, primary_key=True)
+    page_region_id: Mapped[str | None] = mapped_column(ForeignKey("page_regions.id", ondelete="RESTRICT"))
+    regions: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
 
 
 class Analysis(Identity, Base):
@@ -185,6 +187,7 @@ class ExtractionRun(Identity, Base):
     document_id: Mapped[str] = mapped_column(ForeignKey("documents.id", ondelete="RESTRICT"))
     exam_id: Mapped[str] = mapped_column(ForeignKey("exams.id", ondelete="RESTRICT"))
     status: Mapped[str] = mapped_column(String(30))
+    engine: Mapped[str] = mapped_column(String(30), default="legacy", server_default="legacy")
     extractor_version: Mapped[str] = mapped_column(String(50), default="pdfplumber-layout-v2")
     original_candidates: Mapped[list] = mapped_column(JSON, default=list)
     candidates: Mapped[list] = mapped_column(JSON, default=list)
@@ -200,3 +203,69 @@ class DocumentPage(Base):
     text: Mapped[str] = mapped_column(Text)
     extraction_status: Mapped[str] = mapped_column(String(30))
     diagnostics: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+
+
+class PageAsset(Identity, Base):
+    __tablename__ = "document_page_assets"
+    __table_args__ = (UniqueConstraint("document_id", "page_number", "render_version", "dpi"),)
+    document_id: Mapped[str] = mapped_column(ForeignKey("documents.id", ondelete="RESTRICT"))
+    page_number: Mapped[int] = mapped_column(Integer)
+    storage_key: Mapped[str] = mapped_column(String(500))
+    width_px: Mapped[int] = mapped_column(Integer)
+    height_px: Mapped[int] = mapped_column(Integer)
+    dpi: Mapped[int] = mapped_column(Integer)
+    render_version: Mapped[str] = mapped_column(String(60))
+    sha256: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class PageRegion(Identity, Base):
+    __tablename__ = "page_regions"
+    page_asset_id: Mapped[str] = mapped_column(ForeignKey("document_page_assets.id", ondelete="RESTRICT"))
+    extraction_run_id: Mapped[str] = mapped_column(ForeignKey("extraction_runs.id", ondelete="RESTRICT"))
+    region_type: Mapped[str] = mapped_column(String(30))
+    bbox: Mapped[list] = mapped_column(JSON)
+
+
+class ExtractionBatch(Identity, Base):
+    __tablename__ = "extraction_batches"
+    extraction_run_id: Mapped[str] = mapped_column(ForeignKey("extraction_runs.id", ondelete="RESTRICT"))
+    page_numbers: Mapped[list] = mapped_column(JSON)
+    input_hash: Mapped[str] = mapped_column(String(64))
+    provider: Mapped[str] = mapped_column(String(100))
+    model: Mapped[str] = mapped_column(String(100))
+    prompt_version: Mapped[str] = mapped_column(String(100))
+    schema_version: Mapped[str] = mapped_column(String(100))
+    raw_response: Mapped[dict] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(30))
+
+
+class ExtractionCandidate(Identity, Base):
+    __tablename__ = "extraction_candidates"
+    extraction_run_id: Mapped[str] = mapped_column(ForeignKey("extraction_runs.id", ondelete="RESTRICT"))
+    question_number: Mapped[int] = mapped_column(Integer)
+    payload: Mapped[dict] = mapped_column(JSON)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    review_status: Mapped[str] = mapped_column(String(30), default="unreviewed")
+    active: Mapped[bool] = mapped_column(default=True)
+    parent_candidate_ids: Mapped[list] = mapped_column(JSON, default=list)
+    saved_question_id: Mapped[str | None] = mapped_column(ForeignKey("questions.id", ondelete="RESTRICT"))
+
+
+class CandidateSource(Base):
+    __tablename__ = "candidate_sources"
+    candidate_id: Mapped[str] = mapped_column(ForeignKey("extraction_candidates.id", ondelete="RESTRICT"), primary_key=True)
+    page_region_id: Mapped[str] = mapped_column(ForeignKey("page_regions.id", ondelete="RESTRICT"), primary_key=True)
+    role: Mapped[str] = mapped_column(String(30), default="source")
+
+
+class ProcessingJob(Identity, Base):
+    __tablename__ = "processing_jobs"
+    exam_id: Mapped[str] = mapped_column(ForeignKey("exams.id", ondelete="RESTRICT"))
+    document_id: Mapped[str] = mapped_column(ForeignKey("documents.id", ondelete="RESTRICT"))
+    kind: Mapped[str] = mapped_column(String(30))
+    status: Mapped[str] = mapped_column(String(30), default="queued")
+    progress: Mapped[int] = mapped_column(Integer, default=0)
+    result: Mapped[dict] = mapped_column(JSON, default=dict)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

@@ -30,3 +30,6 @@ storage/
 .coverage
 htmlcov/
 .DS_Store
+
+# Non-dot-prefixed local deployment environment files.
+*.env

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from . import models as m, schemas as s
 from .db import get_db
 
-app = FastAPI(title="윤리 임용 기출 분석 AI", version="0.2.0", description="Phase 2: PDF 업로드·문항 추출·브라우저 검수 및 Phase 1 데이터 API. 실제 AI 연결은 Phase 3.")
+app = FastAPI(title="윤리 임용 기출 분석 AI", version="0.3.0", description="이미지 기반 Mock 추출·좌우 검수 및 기존 Phase 1/2 데이터 API. 외부 LLM은 미연결.")
 
 
 def normalize(name):
@@ -357,3 +357,8 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 @app.get("/", include_in_schema=False)
 def home():
     return FileResponse(static_dir / "index.html")
+
+from .multimodal_api import router as multimodal_router
+app.include_router(multimodal_router)
+from .security import setup_security
+setup_security(app)

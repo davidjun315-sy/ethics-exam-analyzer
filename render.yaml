@@ -1,0 +1,71 @@
+# Paid, always-on services. Creating this Blueprint is a user action.
+services:
+  - type: web
+    name: ethics-review
+    runtime: docker
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: ACCESS_PASSWORD
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ethics-db
+          property: connectionString
+      - key: JOB_BACKEND
+        value: redis
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: ethics-queue
+          property: connectionString
+      - key: OBJECT_STORAGE_BACKEND
+        value: s3
+      - key: OBJECT_STORAGE_REGION
+        value: us-east-1
+      - key: OBJECT_STORAGE_BUCKET
+        sync: false
+      - key: OBJECT_STORAGE_ENDPOINT
+        sync: false
+      - key: OBJECT_STORAGE_ACCESS_KEY_ID
+        sync: false
+      - key: OBJECT_STORAGE_SECRET_ACCESS_KEY
+        sync: false
+  - type: worker
+    name: ethics-worker
+    runtime: docker
+    plan: starter
+    dockerCommand: python -m app.worker
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ethics-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: ethics-queue
+          property: connectionString
+      - key: OBJECT_STORAGE_BACKEND
+        value: s3
+      - key: OBJECT_STORAGE_REGION
+        value: us-east-1
+      - key: OBJECT_STORAGE_BUCKET
+        sync: false
+      - key: OBJECT_STORAGE_ENDPOINT
+        sync: false
+      - key: OBJECT_STORAGE_ACCESS_KEY_ID
+        sync: false
+      - key: OBJECT_STORAGE_SECRET_ACCESS_KEY
+        sync: false
+  - type: keyvalue
+    name: ethics-queue
+    plan: starter
+    ipAllowList: []
+databases:
+  - name: ethics-db
+    plan: basic-256mb
+    databaseName: ethics
+    user: ethics

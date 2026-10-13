@@ -41,3 +41,12 @@ PDF 원본·문항·분석 비교, 최신 리비전 및 확정본 충돌 처리.
 계산 지표에 근거한 AI 설명 및 데이터 부족 표시.
 
 원전 RAG, OCR/이미지 입력, 개인 학습 기록 및 예상문제 생성은 MVP 이후로 분리한다.
+
+## 이미지 기반 처리 전환 — 구현됨
+
+PDFium 페이지 PNG 렌더링, 재사용 가능한 페이지 자산·영역, 구조화 후보·배치·작업 테이블,
+MultimodalExtractionProvider와 명시적인 Mock Provider, 좌우 원본/검수 UI를 추가했다.
+Mock은 페이지별 임시 후보를 만들며 실제 AI 문항 분리나 OCR을 수행하지 않는다.
+선택지·출처 영역은 일반 폼과 원본 드래그로 수정하고, 검토 후 기존 Question DB에 저장한다.
+기존 pdfplumber 경계 탐지는 보조 모드로 유지한다. Windows 원클릭 시작과 Render/Docker,
+PostgreSQL·Redis worker·S3 저장소 인터페이스를 준비했다. 외부 LLM과 실제 공개 배포는 미실행이다.

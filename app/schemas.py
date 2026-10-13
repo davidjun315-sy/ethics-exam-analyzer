@@ -52,12 +52,17 @@ class SourceInput(Input):
     page_number: int = Field(gt=0)
 
 
+class QuestionChoice(Input):
+    label: Name
+    text: str
+
+
 class QuestionInput(Input):
     exam_id: str
     question_number: int = Field(gt=0)
     question_text: Text
     passage: str | None = None
-    choices: list[str] = Field(default_factory=list)
+    choices: list[str | QuestionChoice] = Field(default_factory=list)
     answer_area: str | None = None
     raw_text: Text
     sources: list[SourceInput] = Field(min_length=1)

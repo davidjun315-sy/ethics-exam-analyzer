@@ -55,6 +55,7 @@ def test_browser_pdf_workflow(tmp_path, gap):
                 page.locator('#pdf').set_input_files({'name': 'generated.pdf', 'mimeType': 'application/pdf', 'buffer': layout_pdf(numbers=[1, 3]) if gap else pdf_bytes()})
                 page.get_by_role('button', name='PDF 업로드', exact=True).click()
                 expect(page.locator('#message')).to_contain_text('PDF 업로드가 완료')
+                page.locator('#extraction-mode').select_option('legacy')
                 page.get_by_role('button', name='텍스트 추출 · 문항 분리').click()
                 expect(page.locator('.candidate')).to_have_count(2)
                 if gap:
