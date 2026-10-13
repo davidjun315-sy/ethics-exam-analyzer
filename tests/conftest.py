@@ -9,7 +9,8 @@ from app.main import app
 
 
 @pytest.fixture
-def client(tmp_path):
+def client(tmp_path, monkeypatch):
+    monkeypatch.setenv("PDF_STORAGE_DIR", str(tmp_path / "pdfs"))
     url = os.getenv("TEST_DATABASE_URL")
     schema = "test_" + uuid4().hex
     admin = None
@@ -40,4 +41,3 @@ def client(tmp_path):
         with admin.begin() as connection:
             connection.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
         admin.dispose()
-

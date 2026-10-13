@@ -178,3 +178,24 @@ class ReviewEvent(Identity, Base):
     analysis_id: Mapped[str] = mapped_column(ForeignKey("question_analyses.id", ondelete="RESTRICT"))
     action: Mapped[str] = mapped_column(String(30))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class ExtractionRun(Identity, Base):
+    __tablename__ = "extraction_runs"
+    document_id: Mapped[str] = mapped_column(ForeignKey("documents.id", ondelete="RESTRICT"))
+    exam_id: Mapped[str] = mapped_column(ForeignKey("exams.id", ondelete="RESTRICT"))
+    status: Mapped[str] = mapped_column(String(30))
+    extractor_version: Mapped[str] = mapped_column(String(50), default="pdfplumber-layout-v1")
+    original_candidates: Mapped[list] = mapped_column(JSON, default=list)
+    candidates: Mapped[list] = mapped_column(JSON, default=list)
+    warnings: Mapped[list] = mapped_column(JSON, default=list)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class DocumentPage(Base):
+    __tablename__ = "document_pages"
+    extraction_run_id: Mapped[str] = mapped_column(ForeignKey("extraction_runs.id", ondelete="CASCADE"), primary_key=True)
+    page_number: Mapped[int] = mapped_column(Integer, primary_key=True)
+    text: Mapped[str] = mapped_column(Text)
+    extraction_status: Mapped[str] = mapped_column(String(30))

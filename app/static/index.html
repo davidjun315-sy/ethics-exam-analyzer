@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>윤리 기출 · PDF 검수</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <span class="brand">윤리 기출 연구실</span
+      ><span class="badge">Phase 2 · PDF 검수</span>
+    </header>
+    <main>
+      <section class="intro">
+        <p class="eyebrow">원문을 확인하고, 정확한 기출 데이터로</p>
+        <h1>PDF에서 문항까지</h1>
+        <p>
+          시험을 선택하고 PDF를 올려 주세요. 자동으로 분리된 문항을 검토한 뒤
+          저장할 수 있습니다.
+        </p>
+      </section>
+      <div id="message" role="status" aria-live="polite"></div>
+      <section class="panel">
+        <h2><span>1</span> 시험 선택</h2>
+        <label for="exam">등록된 시험</label
+        ><select id="exam">
+          <option value="">시험을 선택하세요</option>
+        </select>
+        <details>
+          <summary>새 시험 만들기</summary>
+          <form id="exam-form" class="grid">
+            <label
+              >연도<input
+                id="year"
+                type="number"
+                min="1900"
+                max="2200"
+                value="2025"
+                required /></label
+            ><label
+              >시험 구분<input
+                id="part"
+                value="A"
+                maxlength="40"
+                required /></label
+            ><label
+              >시험 이름<input
+                id="title"
+                placeholder="예: 2025 윤리 전공 A"
+                maxlength="200"
+                required /></label
+            ><button type="submit">시험 생성</button>
+          </form>
+          <p class="hint">
+            같은 연도의 A/B 시험지는 서로 다른 시험으로 등록하세요.
+          </p>
+        </details>
+      </section>
+      <section class="panel">
+        <h2><span>2</span> PDF 업로드와 추출</h2>
+        <form id="upload-form">
+          <label for="pdf">PDF 선택 (최대 25MB · 500쪽)</label
+          ><input
+            id="pdf"
+            type="file"
+            accept=".pdf,application/pdf"
+            required
+          /><button id="upload" type="submit">PDF 업로드</button>
+        </form>
+        <div id="document-info" class="hint"></div>
+        <label for="document">이 시험의 문서</label
+        ><select id="document">
+          <option value="">먼저 시험을 선택하세요</option></select
+        ><button id="extract" disabled>텍스트 추출 · 문항 분리</button>
+        <p class="hint">
+          스캔 PDF는 ‘OCR 필요’로 표시합니다. 자동 분리 결과는 반드시 직접
+          확인해 주세요.
+        </p>
+      </section>
+      <section class="panel">
+        <h2><span>3</span> 문항 검토와 저장</h2>
+        <label for="history">이전 추출 결과</label
+        ><select id="history">
+          <option value="">추출 기록 없음</option>
+        </select>
+        <div id="run-info" class="hint"></div>
+        <div id="warnings"></div>
+        <div id="candidates">
+          <p class="empty">추출을 실행하면 문항 후보가 여기에 표시됩니다.</p>
+        </div>
+        <div class="actions">
+          <button id="draft" disabled class="secondary">수정 초안 저장</button
+          ><button id="save" disabled>검토 완료 · 문항 저장</button>
+        </div>
+        <p class="hint">
+          합치기는 다음 후보와 합칩니다. 분리는 입력창의 커서 위치에서 나눕니다.
+          분리 후 번호와 출처 페이지를 확인해 주세요. 이 검토는 PDF 추출
+          검수이며 AI 정답 확정과는 별개입니다.
+        </p>
+        <details>
+          <summary>페이지별 추출 원문 보기</summary>
+          <div id="pages"></div>
+        </details>
+      </section>
+      <section class="panel">
+        <h2><span>4</span> 저장된 문항</h2>
+        <button id="refresh" class="secondary">문항 새로 조회</button>
+        <div id="questions">
+          <p class="empty">선택한 시험에 저장된 문항이 표시됩니다.</p>
+        </div>
+      </section>
+    </main>
+    <footer>
+      자동 분리는 검토를 돕는 초안입니다. AI 정답 분석·OCR·통계는 아직 제공하지
+      않습니다.
+    </footer>
+  </body>
+</html>

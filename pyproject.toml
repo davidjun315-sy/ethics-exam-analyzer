@@ -7,10 +7,10 @@ name = "ethics-exam-analyzer"
 version = "0.1.0"
 description = "Reviewed ethics exam question database — Phase 1"
 requires-python = ">=3.12"
-dependencies = ["fastapi>=0.115,<1", "uvicorn[standard]>=0.30,<1", "sqlalchemy>=2.0,<3", "alembic>=1.13,<2", "psycopg[binary]>=3.2,<4"]
+dependencies = ["fastapi>=0.115,<1", "uvicorn[standard]>=0.30,<1", "sqlalchemy>=2.0,<3", "alembic>=1.13,<2", "psycopg[binary]>=3.2,<4", "pdfplumber>=0.11,<1", "python-multipart>=0.0.20,<1"]
 
 [project.optional-dependencies]
-test = ["pytest>=8,<10", "httpx>=0.27,<1"]
+test = ["pytest>=8,<10", "httpx>=0.27,<1", "reportlab>=4,<6", "playwright>=1.50,<2"]
 
 [tool.setuptools.packages.find]
 include = ["app*"]
@@ -18,3 +18,6 @@ include = ["app*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.setuptools.package-data]
+app = ["static/*"]

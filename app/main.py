@@ -342,3 +342,18 @@ def published_analyses(db: Session = Depends(get_db)):
     rows = db.scalars(select(m.Analysis).join(m.Publication, m.Publication.analysis_id == m.Analysis.id)
                       .where(m.Analysis.review_status.in_(["confirmed", "corrected"])))
     return [analysis_view(db, x) for x in rows]
+
+# Phase 2 is served from the same origin: no separate frontend build or CORS setup.
+from pathlib import Path
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from .pdf_api import router as pdf_router
+
+app.include_router(pdf_router)
+static_dir = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+
+@app.get("/", include_in_schema=False)
+def home():
+    return FileResponse(static_dir / "index.html")
