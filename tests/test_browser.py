@@ -11,9 +11,11 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import sync_playwright, expect
 from test_pdf import pdf_bytes
+from test_extraction_layout import layout_pdf
 
 
-def test_browser_pdf_workflow(tmp_path):
+@pytest.mark.parametrize("gap", [False, True])
+def test_browser_pdf_workflow(tmp_path, gap):
     executable = os.getenv('BROWSER_EXECUTABLE') or shutil.which('chromium') or shutil.which('google-chrome')
     bundled = os.getenv('USE_PLAYWRIGHT_BROWSER') == '1'
     if not executable and not bundled:
@@ -50,11 +52,25 @@ def test_browser_pdf_workflow(tmp_path):
                 page.locator('#title').fill('Browser PDF test')
                 page.get_by_role('button', name='시험 생성', exact=True).click()
                 expect(page.locator('#message')).to_contain_text('시험을 생성했습니다')
-                page.locator('#pdf').set_input_files({'name': 'generated.pdf', 'mimeType': 'application/pdf', 'buffer': pdf_bytes()})
+                page.locator('#pdf').set_input_files({'name': 'generated.pdf', 'mimeType': 'application/pdf', 'buffer': layout_pdf(numbers=[1, 3]) if gap else pdf_bytes()})
                 page.get_by_role('button', name='PDF 업로드', exact=True).click()
                 expect(page.locator('#message')).to_contain_text('PDF 업로드가 완료')
                 page.get_by_role('button', name='텍스트 추출 · 문항 분리').click()
                 expect(page.locator('.candidate')).to_have_count(2)
+                if gap:
+                    expect(page.locator('.gap-marker')).to_contain_text('2번 누락 가능')
+                    page.get_by_role('button', name='2번 누락 문항 추가', exact=True).click()
+                    expect(page.locator('.candidate')).to_have_count(3)
+                    page.locator('.candidate textarea').nth(1).fill('Manual second question.')
+                    page.get_by_role('button', name='수정 초안 저장').click()
+                    expect(page.locator('#message')).to_contain_text('수정 초안을 저장했습니다')
+                    expect(page.locator('.gap-marker')).to_have_count(0)
+                    page.get_by_role('button', name='검토 완료 · 문항 저장').click()
+                    expect(page.locator('#message')).to_contain_text('3개 문항을 저장했습니다')
+                    expect(page.locator('#questions details')).to_have_count(3)
+                    assert not errors, errors
+                    browser.close()
+                    return
                 expect(page.locator('.candidate').first.locator('.page-input')).to_have_value('1, 2')
                 page.get_by_role('button', name='다음 문항과 합치기').first.click()
                 expect(page.locator('.candidate')).to_have_count(1)

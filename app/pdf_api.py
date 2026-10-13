@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from . import models as m, schemas as s
 from .db import get_db
-from .extraction import page_text, split_questions
+from .extraction import VERSION, analyze_page, split_questions, missing_numbers, gap_warnings
 
 router = APIRouter()
 MAX_BYTES = 25 * 1024 * 1024
@@ -91,8 +91,13 @@ def uploaded_documents(exam_id: str, db: Session = Depends(get_db)):
     return [serialize(x) for x in docs]
 
 
+class ExtractOptions(s.Input):
+    column_mode: s.Literal['auto', 'single', 'two'] = 'auto'
+    allow_circled: bool = False
+
+
 @router.post('/exams/{exam_id}/documents/{document_id}/extract', status_code=201)
-def extract(exam_id: str, document_id: str, db: Session = Depends(get_db)):
+def extract(exam_id: str, document_id: str, options: ExtractOptions = ExtractOptions(), db: Session = Depends(get_db)):
     commit, get, serialize = helpers()
     doc = get(db, m.Document, document_id)
     if not db.get(m.ExamDocument, {'exam_id': exam_id, 'document_id': document_id}):
@@ -101,29 +106,30 @@ def extract(exam_id: str, document_id: str, db: Session = Depends(get_db)):
     path = storage() / f'{doc.sha256}.pdf'
     if not path.is_file():
         raise HTTPException(409, 'PDF 원본 파일이 없습니다. 업로드 화면에서 파일을 올려 주세요.')
-    pages, warnings = [], []
+    pages, warnings, layouts = [], [], {}
     try:
         with pdfplumber.open(path) as pdf:
             for i, page in enumerate(pdf.pages, 1):
-                text, columns = page_text(page)
-                pages.append((i, text))
-                if columns:
+                layout = analyze_page(page, options.column_mode, options.allow_circled)
+                layouts[i] = layout
+                pages.append((i, layout['text']))
+                if layout['two_columns']:
                     warnings.append(f'{i}쪽: 2단 편집을 감지해 왼쪽→오른쪽 순서로 추출했습니다. 경계를 확인해 주세요.')
     except Exception:
         raise HTTPException(422, 'PDF 텍스트 추출에 실패했습니다.')
-    original, boundary_warnings = split_questions(pages)
+    original, boundary_warnings = split_questions(pages, layouts, options.allow_circled)
     empty = [i for i, text in pages if not text.strip()]
     warnings += boundary_warnings
     if empty:
         warnings.append(f'텍스트가 없는 페이지: {empty}. OCR 또는 수동 입력이 필요합니다.')
     status = 'needs_ocr' if len(empty) == len(pages) else ('partial' if empty else 'extracted')
     run = m.ExtractionRun(document_id=document_id, exam_id=exam_id, status=status,
-                          original_candidates=original, candidates=original, warnings=warnings)
+                          original_candidates=original, candidates=original, warnings=warnings, extractor_version=VERSION)
     db.add(run)
     db.flush()
     for i, text in pages:
         db.add(m.DocumentPage(extraction_run_id=run.id, page_number=i, text=text,
-                             extraction_status='extracted' if text.strip() else 'needs_ocr'))
+                             extraction_status='extracted' if text.strip() else 'needs_ocr', diagnostics=layouts[i]))
     commit(db)
     return run_view(db, run)
 
@@ -131,7 +137,25 @@ def extract(exam_id: str, document_id: str, db: Session = Depends(get_db)):
 def run_view(db, run):
     _, _, serialize = helpers()
     result = serialize(run)
+    result['missing_numbers'] = missing_numbers(run.candidates)
+    result['warnings'] = [w for w in run.warnings if '번 문항 경계 누락 가능성:' not in w] + gap_warnings(run.candidates)
     result['pages'] = [serialize(x) for x in db.scalars(select(m.DocumentPage).where(m.DocumentPage.extraction_run_id == run.id).order_by(m.DocumentPage.page_number))]
+    report = []
+    for n in result['missing_numbers']:
+        evidence = [{**line, 'page_number': page['page_number']} for page in result['pages']
+                    for line in page.get('diagnostics', {}).get('lines', []) if line.get('number') == n]
+        native_pages = [page['page_number'] for page in result['pages']
+                        if n in page.get('diagnostics', {}).get('native_number_order', [])]
+        if any(line['accepted'] for line in evidence):
+            cause = '번호 좌표 후보는 있으나 중복·역순 때문에 경계에서 제외됨: 읽기 순서 또는 내부 번호 확인 필요'
+        elif evidence:
+            cause = '텍스트 번호 후보는 있으나 좌표 조건에서 제외됨: ' + ', '.join(sorted({line['reason'] for line in evidence}))
+        elif native_pages:
+            cause = '기본 추출 텍스트에는 번호가 있으나 좌표 정렬에서 확인되지 않음: 토큰·줄 배치 확인 필요'
+        else:
+            cause = '추출 텍스트에서 번호 후보를 확인하지 못함: 이미지 번호·문자 매핑·텍스트 누락 여부를 원본 PDF와 비교해야 함'
+        report.append({'question_number': n, 'cause': cause, 'evidence': evidence, 'native_pages': native_pages})
+    result['boundary_report'] = report
     return result
 
 
@@ -162,6 +186,7 @@ class Edit(s.Input):
 
 class Save(s.Input):
     expected_revision: int = Field(gt=0)
+    acknowledge_missing: bool = False
 
 
 def locked_run(db, id, revision):
@@ -200,6 +225,8 @@ def save_run(id: str, payload: Save, db: Session = Depends(get_db)):
     run = locked_run(db, id, payload.expected_revision)
     if not run.candidates:
         raise HTTPException(422, '저장할 문항이 없습니다. 스캔 문서는 OCR이 필요합니다.')
+    if missing_numbers(run.candidates) and not payload.acknowledge_missing:
+        raise HTTPException(422, '누락 가능 문항이 있습니다. 보정하거나 번호 누락 경고를 확인한 뒤 저장해 주세요.')
     # Lock the exam to serialize overlapping imports on PostgreSQL.
     db.execute(select(m.Exam).where(m.Exam.id == run.exam_id).with_for_update())
     numbers = [x['question_number'] for x in run.candidates]

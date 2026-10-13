@@ -74,6 +74,16 @@
         ><select id="document">
           <option value="">먼저 시험을 선택하세요</option></select
         ><button id="extract" disabled>텍스트 추출 · 문항 분리</button>
+        <label for="column-mode">PDF 읽기 순서</label>
+        <select id="column-mode">
+          <option value="auto">자동 감지</option>
+          <option value="two">2단: 왼쪽 위→아래, 오른쪽 위→아래</option>
+          <option value="single">1단: 위→아래</option>
+        </select>
+        <label
+          ><input id="circled-numbers" type="checkbox" /> 원문의 실제 문항
+          번호가 ①·② 형식입니다 (선택지와 혼동될 수 있음)</label
+        >
         <p class="hint">
           스캔 PDF는 ‘OCR 필요’로 표시합니다. 자동 분리 결과는 반드시 직접
           확인해 주세요.
@@ -90,14 +100,26 @@
         <div id="candidates">
           <p class="empty">추출을 실행하면 문항 후보가 여기에 표시됩니다.</p>
         </div>
+        <div class="manual-add">
+          <label for="add-number">누락 문항 번호</label
+          ><input id="add-number" type="number" min="1" max="999" value="1" />
+          <button id="add-missing" class="secondary" disabled>
+            누락 문항 추가
+          </button>
+        </div>
+        <label id="gap-ack-label" hidden
+          ><input id="gap-ack" type="checkbox" /> 번호 누락 가능성을
+          확인했습니다. 일부 문항만 저장합니다.</label
+        >
         <div class="actions">
           <button id="draft" disabled class="secondary">수정 초안 저장</button
           ><button id="save" disabled>검토 완료 · 문항 저장</button>
         </div>
         <p class="hint">
           합치기는 다음 후보와 합칩니다. 분리는 입력창의 커서 위치에서 나눕니다.
-          분리 후 번호와 출처 페이지를 확인해 주세요. 이 검토는 PDF 추출
-          검수이며 AI 정답 확정과는 별개입니다.
+          누락 표시의 추가 버튼으로 빈 문항을 만들고 원문을 옮겨 넣을 수도
+          있습니다. 분리·추가 후 번호와 출처 페이지를 확인해 주세요. 이 검토는
+          PDF 추출 검수이며 AI 정답 확정과는 별개입니다.
         </p>
         <details>
           <summary>페이지별 추출 원문 보기</summary>

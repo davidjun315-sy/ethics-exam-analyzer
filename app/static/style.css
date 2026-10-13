@@ -230,3 +230,28 @@ select:focus-visible {
     display: none;
   }
 }
+
+.gap-marker {
+  border: 2px dashed #bc7424;
+  border-radius: 8px;
+  padding: 12px 18px;
+  background: #fff8e8;
+  color: #75571f;
+  margin: 18px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+input[type="checkbox"] {
+  width: auto;
+  margin-right: 8px;
+}
+.manual-add input {
+  max-width: 120px;
+}
+
+[hidden] {
+  display: none !important;
+}

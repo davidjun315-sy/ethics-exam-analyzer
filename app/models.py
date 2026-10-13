@@ -185,7 +185,7 @@ class ExtractionRun(Identity, Base):
     document_id: Mapped[str] = mapped_column(ForeignKey("documents.id", ondelete="RESTRICT"))
     exam_id: Mapped[str] = mapped_column(ForeignKey("exams.id", ondelete="RESTRICT"))
     status: Mapped[str] = mapped_column(String(30))
-    extractor_version: Mapped[str] = mapped_column(String(50), default="pdfplumber-layout-v1")
+    extractor_version: Mapped[str] = mapped_column(String(50), default="pdfplumber-layout-v2")
     original_candidates: Mapped[list] = mapped_column(JSON, default=list)
     candidates: Mapped[list] = mapped_column(JSON, default=list)
     warnings: Mapped[list] = mapped_column(JSON, default=list)
@@ -199,3 +199,4 @@ class DocumentPage(Base):
     page_number: Mapped[int] = mapped_column(Integer, primary_key=True)
     text: Mapped[str] = mapped_column(Text)
     extraction_status: Mapped[str] = mapped_column(String(30))
+    diagnostics: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
