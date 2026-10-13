@@ -1,0 +1,32 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.env
+*.db
+*.db-journal
+*.egg-info/
+
+# Local environment files; only the credential-free template is shared.
+.env.*
+!.env.example
+
+# Credentials and private keys.
+secrets/
+credentials/
+*.pem
+*.key
+*.p12
+*.pfx
+service-account*.json
+credentials*.json
+
+# Uploaded source documents and generated artifacts.
+*.pdf
+uploads/
+attachments/
+storage/
+*.db-wal
+*.db-shm
+.coverage
+htmlcov/
+.DS_Store
