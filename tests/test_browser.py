@@ -15,7 +15,8 @@ from test_pdf import pdf_bytes
 
 def test_browser_pdf_workflow(tmp_path):
     executable = os.getenv('BROWSER_EXECUTABLE') or shutil.which('chromium') or shutil.which('google-chrome')
-    if not executable:
+    bundled = os.getenv('USE_PLAYWRIGHT_BROWSER') == '1'
+    if not executable and not bundled:
         pytest.skip('Chromium is required for the browser test; set BROWSER_EXECUTABLE.')
     root = Path(__file__).resolve().parents[1]
     env = {**os.environ, 'DATABASE_URL': f'sqlite:///{tmp_path / "browser.db"}',
@@ -39,7 +40,7 @@ def test_browser_pdf_workflow(tmp_path):
             else:
                 pytest.fail('Browser test server did not start')
             with sync_playwright() as p:
-                browser = p.chromium.launch(executable_path=executable, headless=True)
+                browser = p.chromium.launch(**({'executable_path': executable} if executable else {}), headless=True)
                 page = browser.new_page(viewport={'width': 1280, 'height': 1000})
                 errors = []
                 page.on('pageerror', lambda e: errors.append(str(e)))

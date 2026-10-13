@@ -31,50 +31,55 @@ def helpers():
 @router.post('/exams/{exam_id}/upload', status_code=201)
 def upload(exam_id: str, file: UploadFile = File(...), db: Session = Depends(get_db)):
     commit, get, serialize = helpers()
-    get(db, m.Exam, exam_id)
-    filename = Path((file.filename or 'upload.pdf').replace('\\', '/')).name
-    if not filename.lower().endswith('.pdf') or len(filename) > 255:
-        raise HTTPException(422, 'PDF 파일을 선택해 주세요. 파일명은 255자 이하여야 합니다.')
-    with NamedTemporaryFile(dir=storage(), suffix='.tmp', delete=False) as tmp:
-        temporary = Path(tmp.name)
+    temporary = None
+    try:
+        get(db, m.Exam, exam_id)
+        filename = Path((file.filename or 'upload.pdf').replace('\\', '/')).name
+        if not filename.lower().endswith('.pdf') or len(filename) > 255:
+            raise HTTPException(422, 'PDF 파일을 선택해 주세요. 파일명은 255자 이하여야 합니다.')
         digest, size = hashlib.sha256(), 0
-        try:
+        # Windows forbids replacing/deleting an open NamedTemporaryFile.
+        # Close the writer BEFORE opening the PDF, promoting it, or cleaning up.
+        with NamedTemporaryFile(dir=storage(), suffix='.tmp', delete=False) as tmp:
+            temporary = Path(tmp.name)
             while chunk := file.file.read(1024 * 1024):
                 size += len(chunk)
                 if size > MAX_BYTES:
                     raise HTTPException(413, 'PDF 최대 크기는 25MB입니다.')
                 digest.update(chunk)
                 tmp.write(chunk)
-            tmp.flush()
-            with temporary.open('rb') as stream:
-                if stream.read(5) != b'%PDF-':
-                    raise HTTPException(422, '유효한 PDF 파일이 아닙니다.')
-            try:
-                with pdfplumber.open(temporary) as pdf:
-                    count = len(pdf.pages)
-                    if not 1 <= count <= 500:
-                        raise HTTPException(422, 'PDF는 1~500쪽이어야 합니다.')
-            except HTTPException:
-                raise
-            except Exception:
-                raise HTTPException(422, 'PDF를 읽을 수 없습니다. 손상되었거나 암호화된 파일인지 확인해 주세요.')
-            sha = digest.hexdigest()
-            existing = db.scalar(select(m.Document).where(m.Document.sha256 == sha).order_by(m.Document.uploaded_at))
-            duplicate = existing is not None
-            doc = existing or m.Document(filename=filename, storage_key=f'{sha}.pdf', sha256=sha, page_count=count)
-            # Hash-derived path prevents filename traversal; repair missing original on duplicate upload.
-            destination = storage() / f'{sha}.pdf'
-            if not destination.exists():
-                temporary.replace(destination)
-            if not existing:
-                db.add(doc)
-                db.flush()
-            if db.get(m.ExamDocument, {'exam_id': exam_id, 'document_id': doc.id}) is None:
-                db.add(m.ExamDocument(exam_id=exam_id, document_id=doc.id))
-            commit(db)
-            return {'document': serialize(doc), 'duplicate': duplicate}
+        with temporary.open('rb') as stream:
+            if stream.read(5) != b'%PDF-':
+                raise HTTPException(422, '유효한 PDF 파일이 아닙니다.')
+        try:
+            with pdfplumber.open(temporary) as pdf:
+                count = len(pdf.pages)
+                if not 1 <= count <= 500:
+                    raise HTTPException(422, 'PDF는 1~500쪽이어야 합니다.')
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(422, 'PDF를 읽을 수 없습니다. 손상되었거나 암호화된 파일인지 확인해 주세요.')
+        sha = digest.hexdigest()
+        existing = db.scalar(select(m.Document).where(m.Document.sha256 == sha).order_by(m.Document.uploaded_at))
+        duplicate = existing is not None
+        doc = existing or m.Document(filename=filename, storage_key=f'{sha}.pdf', sha256=sha, page_count=count)
+        # Hash-derived path prevents filename traversal; repair missing original on duplicate upload.
+        destination = storage() / f'{sha}.pdf'
+        if not destination.exists():
+            temporary.replace(destination)
+        if not existing:
+            db.add(doc)
+            db.flush()
+        if db.get(m.ExamDocument, {'exam_id': exam_id, 'document_id': doc.id}) is None:
+            db.add(m.ExamDocument(exam_id=exam_id, document_id=doc.id))
+        commit(db)
+        return {'document': serialize(doc), 'duplicate': duplicate}
+    finally:
+        try:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
         finally:
-            temporary.unlink(missing_ok=True)
             file.file.close()
 
 

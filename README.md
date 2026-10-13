@@ -8,7 +8,10 @@ Phase 1 DB·CRUD API 위에 Phase 2 PDF 처리와 브라우저 검수 화면을 
 
 웹 UI와 API는 **하나의 FastAPI 서버**에서 실행됩니다. 별도의 프런트엔드 서버나 Node.js 설치는 필요 없습니다.
 
-Python 3.12 이상을 설치한 PC의 터미널에서:
+공식 지원 대상은 Windows 11과 Linux의 Python 3.12/3.13입니다. macOS 실행 명령도 제공합니다.
+Windows/Linux 설치·마이그레이션·PDF 처리·브라우저 흐름은 GitHub Actions에서 지속 검증합니다.
+
+Python 3.12 또는 3.13을 설치한 PC의 터미널에서:
 
 ```bash
 git clone https://github.com/davidjun315-sy/ethics-exam-analyzer.git
@@ -88,8 +91,9 @@ API 문서는 `/docs`입니다. 종료는 터미널에서 Ctrl+C를 누릅니다
 
 Windows는 `.venv/bin/` 대신 `.venv\Scripts\`를 사용합니다.
 테스트가 PDF를 메모리에서 직접 생성합니다. 실제 기출 PDF나 API key가 필요 없습니다.
-Phase 1 7개, Phase 2 API·추출 7개, 실제 Chromium 브라우저 흐름 1개입니다.
-브라우저 테스트는 Chromium이 없으면 skipped로 표시됩니다. 브라우저를 설치한 뒤:
+Phase 1 7개, Phase 2 API·추출 7개, 실제 Chromium 브라우저 흐름 1개,
+Windows 호환 회귀 테스트 7개로 총 22개입니다.
+브라우저 테스트는 Chromium이 없으면 skipped로 표시됩니다. 로컬 테스트에서 브라우저를 지정하려면:
 
 ```bash
 BROWSER_EXECUTABLE=/usr/bin/chromium .venv/bin/pytest -q tests/test_browser.py
@@ -147,3 +151,29 @@ PDF 추출은 동기 실행하므로 큰 파일은 시간이 걸릴 수 있습�
 로컬 개발용 서버입니다. 공개 서비스 전 인증·사용자 감사·처리 시간 제한을 추가해야 합니다.
 
 다음 단계: [docs/roadmap.md](docs/roadmap.md)
+
+## Windows 호환성 유지
+
+`requirements.lock`의 uvloop는 `sys_platform != "win32"` 조건으로 Windows에서 제외됩니다.
+Windows에서는 asyncio를 사용합니다. colorama는 Windows에서만 설치합니다.
+플랫폼 조건이 손실되므로 `pip freeze` 출력으로 이 파일을 그대로 덮어쓰지 마세요.
+
+업로드는 임시 파일 쓰기 핸들을 닫은 다음 PDF를 읽습니다. PDF 읽기 핸들도 닫은 후
+파일을 이동하며, 바깥 finally에서 임시 파일을 정리합니다. 유효하지 않은 PDF, 크기 초과,
+쓰기·이동 실패에도 임시 파일이 남지 않는지 회귀 테스트로 검사합니다.
+파일 잠금 오류를 무시하거나 PermissionError를 숨기는 방식을 사용하지 않습니다.
+
+Windows/Linux CI는 Python 3.12/3.13에서 전체 lockfile 설치, pip check,
+마이그레이션과 모든 테스트를 실행합니다. CI는 Playwright Chromium을 설치해
+브라우저 테스트가 skipped되지 않도록 합니다.
+
+Windows에서 이번 수정 적용하기(기존 설치 폴더의 PowerShell):
+
+```powershell
+git pull origin main
+.venv\Scripts\python.exe -m pip install -r requirements.lock
+.venv\Scripts\alembic.exe upgrade head
+.venv\Scripts\uvicorn.exe app.main:app --host 127.0.0.1 --port 8000
+```
+
+실행 중이던 서버는 먼저 Ctrl+C로 종료한 뒤 다시 실행하세요.
