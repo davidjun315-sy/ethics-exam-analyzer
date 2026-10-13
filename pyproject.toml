@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ethics-exam-analyzer"
-version = "0.1.0"
-description = "Reviewed ethics exam question database — Phase 1"
+version = "0.2.0"
+description = "Ethics exam PDF extraction and review — Phase 2"
 requires-python = ">=3.12"
 dependencies = ["fastapi>=0.115,<1", "uvicorn[standard]>=0.30,<1", "sqlalchemy>=2.0,<3", "alembic>=1.13,<2", "psycopg[binary]>=3.2,<4", "pdfplumber>=0.11,<1", "python-multipart>=0.0.20,<1"]
 

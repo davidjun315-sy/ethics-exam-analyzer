@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from . import models as m, schemas as s
 from .db import get_db
 
-app = FastAPI(title="윤리 임용 기출 분석 AI", version="0.1.0", description="Phase 1: 원문·분석 분리와 검수 기반 데이터 API. 실제 AI 연결은 Phase 3.")
+app = FastAPI(title="윤리 임용 기출 분석 AI", version="0.2.0", description="Phase 2: PDF 업로드·문항 추출·브라우저 검수 및 Phase 1 데이터 API. 실제 AI 연결은 Phase 3.")
 
 
 def normalize(name):
@@ -43,7 +43,7 @@ async def integrity_error(request, exc):
 @app.get("/health")
 def health(db: Session = Depends(get_db)):
     db.execute(select(m.Exam.id).limit(1))
-    return {"status": "ok", "phase": 1}
+    return {"status": "ok", "phase": 2}
 
 
 def validate_parent(db, model, item_id, parent_id, field):
